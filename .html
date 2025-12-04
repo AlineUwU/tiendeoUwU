@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Compras - Tiendeo (KAITO Fix)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html2canvas para capturas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- jsPDF para generar PDFs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #5D5CDE;
+        }
+        .bg-primary { background-color: var(--primary); }
+        .text-primary { color: var(--primary); }
+        .border-primary { border-color: var(--primary); }
+        .ring-primary { --tw-ring-color: var(--primary); }
+        .focus\:ring-primary:focus { --tw-ring-color: var(--primary); }
+        .focus\:border-primary:focus { border-color: var(--primary); }
+        .hover\:bg-primary\/90:hover { background-color: color-mix(in srgb, var(--primary) 90%, transparent); }
+        
+        /* Animación suave para los items */
+        .item-enter {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors font-sans">
+    <div class="min-h-screen p-4 md:p-6 pb-24">
+        <div class="max-w-4xl mx-auto">
+            <!-- Header -->
+            <div class="text-center mb-8 pt-4">
+                <h1 class="text-3xl md:text-4xl font-bold text-primary mb-2">
+                    <i class="fas fa-shopping-cart mr-3"></i>
+                    Lista de Compras
+                </h1>
+                <p class="text-gray-600 dark:text-gray-400">Organiza tus compras por tienda 💙</p>
+            </div>
+
+            <!-- Formulario para agregar artículo -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 mb-6 shadow-lg border border-gray-100 dark:border-gray-700">
+                <h2 class="text-xl font-semibold mb-4 text-primary flex items-center">
+                    <i class="fas fa-plus-circle mr-2"></i>
+                    Agregar Artículo
+                </h2>
+                <form id="itemForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
+                    <div class="lg:col-span-2">
+                        <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Cant.</label>
+                        <input type="number" id="quantity" min="1" step="1" value="1" 
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-primary transition-shadow">
+                    </div>
+                    <div class="lg:col-span-4">
+                        <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Artículo</label>
+                        <input type="text" id="itemName" required 
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
+                               placeholder="Ej. Leche, Pan...">
+                    </div>
+                    <div class="lg:col-span-3">
+                        <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tienda</label>
+                        <input type="text" id="storeName" required 
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
+                               placeholder="Ej. Walmart">
+                    </div>
+                    <div class="lg:col-span-2">
+                        <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Precio ($)</label>
+                        <input type="number" id="price" min="0" step="0.01" required 
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
+                               placeholder="0.00">
+                    </div>
+                    <div class="flex items-end lg:col-span-1">
+                        <button type="submit" 
+                                class="w-full h-[42px] bg-primary hover:bg-primary/90 text-white font-medium rounded-lg transition-all transform active:scale-95 shadow-md flex items-center justify-center">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Lista de compras -->
+            <div id="shoppingListContainer" class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700 hidden">
+                <div class="px-6 py-4 bg-primary text-white flex justify-between items-center">
+                    <h2 class="text-xl font-semibold flex items-center">
+                        <i class="fas fa-list-check mr-2"></i>
+                        Mi Lista
+                    </h2>
+                    <span id="itemCountBadge" class="bg-white/20 px-3 py-1 rounded-full text-sm">0 items</span>
+                </div>
+                
+                <div id="shoppingList" class="divide-y divide-gray-200 dark:divide-gray-700 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                    <!-- Los artículos se agregarán aquí dinámicamente -->
+                </div>
+
+                <!-- Total -->
+                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600">
+                    <div class="flex justify-between items-center">
+                        <span class="text-lg font-semibold text-gray-700 dark:text-gray-300">Total Estimado:</span>
+                        <span id="totalAmount" class="text-3xl font-bold text-primary">$0.00</span>
+                    </div>
+                </div>
+
+                <!-- Botones de acción -->
+                <div class="p-4 bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-600 flex flex-col sm:flex-row gap-3">
+                    <button id="exportPNG" 
+                            class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95">
+                        <i class="fas fa-image"></i> PNG
+                    </button>
+                    <button id="exportPDF" 
+                            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </button>
+                    <button id="clearAll" 
+                            class="flex-1 bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95">
+                        <i class="fas fa-trash-alt"></i> Borrar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Lista vacía -->
+            <div id="emptyState" class="text-center py-16">
+                <div class="inline-block p-6 rounded-full bg-gray-100 dark:bg-gray-800 mb-4 animate-pulse">
+                    <i class="fas fa-shopping-basket text-6xl text-primary/40"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-700 dark:text-gray-300 mb-1">Tu lista está vacía</h3>
+                <p class="text-gray-500 dark:text-gray-400">Agrega cosas ricas para comenzar 🍦</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmación -->
+    <div id="confirmModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300" id="modalContent">
+            <div class="mb-6 text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                    <i class="fas fa-exclamation-triangle text-red-600 dark:text-red-400 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Confirmar acción</h3>
+                <p id="confirmMessage" class="text-gray-600 dark:text-gray-300 text-sm"></p>
+            </div>
+            <div class="flex gap-3">
+                <button id="confirmCancel" class="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors font-medium">
+                    Cancelar
+                </button>
+                <button id="confirmOK" class="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-medium shadow-lg shadow-red-500/30">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black/70 z-[100] hidden flex flex-col items-center justify-center text-white">
+        <i class="fas fa-circle-notch fa-spin text-5xl text-primary mb-4"></i>
+        <p class="text-lg font-medium" id="loadingText">Procesando...</p>
+    </div>
+
+    <script>
+        // Configuración de jsPDF
+        const { jsPDF } = window.jspdf;
+
+        // Detectar modo oscuro
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
+        });
+
+        let shoppingItems = [];
+        let itemCounter = 0;
+
+        // Elementos del DOM
+        const itemForm = document.getElementById('itemForm');
+        const shoppingList = document.getElementById('shoppingList');
+        const totalAmount = document.getElementById('totalAmount');
+        const itemCountBadge = document.getElementById('itemCountBadge');
+        const emptyState = document.getElementById('emptyState');
+        const shoppingListContainer = document.getElementById('shoppingListContainer');
+        const exportPNGBtn = document.getElementById('exportPNG');
+        const exportPDFBtn = document.getElementById('exportPDF');
+        const clearAllBtn = document.getElementById('clearAll');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+
+        // Modal Logic
+        const confirmModal = document.getElementById('confirmModal');
+        const modalContent = document.getElementById('modalContent');
+        const confirmMessage = document.getElementById('confirmMessage');
+        const confirmCancel = document.getElementById('confirmCancel');
+        const confirmOK = document.getElementById('confirmOK');
+
+        function toggleLoading(show, text = 'Procesando...') {
+            loadingText.textContent = text;
+            if (show) {
+                loadingOverlay.classList.remove('hidden');
+                loadingOverlay.classList.add('flex');
+            } else {
+                loadingOverlay.classList.add('hidden');
+                loadingOverlay.classList.remove('flex');
+            }
+        }
+
+        function showConfirmDialog(message, onConfirm) {
+            confirmMessage.textContent = message;
+            confirmModal.classList.remove('hidden');
+            // Small timeout to allow transition
+            setTimeout(() => {
+                confirmModal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+            
+            const close = () => {
+                confirmModal.classList.add('opacity-0');
+                modalContent.classList.remove('scale-100');
+                modalContent.classList.add('scale-95');
+                setTimeout(() => {
+                    confirmModal.classList.add('hidden');
+                }, 300);
+                confirmCancel.removeEventListener('click', close);
+                confirmOK.removeEventListener('click', handleConfirm);
+            };
+            
+            const handleConfirm = () => {
+                close();
+                onConfirm();
+            };
+            
+            confirmCancel.addEventListener('click', close);
+            confirmOK.addEventListener('click', handleConfirm);
+        }
+
+        // Agregar artículo
+        itemForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const quantity = parseInt(document.getElementById('quantity').value);
+            const itemName = document.getElementById('itemName').value.trim();
+            const storeName = document.getElementById('storeName').value.trim();
+            const price = parseFloat(document.getElementById('price').value);
+
+            if (!itemName || !storeName || isNaN(price) || price < 0) return;
+
+            const item = {
+                id: ++itemCounter,
+                quantity,
+                name: itemName,
+                store: storeName,
+                price,
+                total: quantity * price
+            };
+
+            shoppingItems.push(item);
+            renderShoppingList();
+            updateTotal();
+
+            // Reset inputs
+            document.getElementById('itemName').value = '';
+            document.getElementById('storeName').value = '';
+            document.getElementById('price').value = '';
+            document.getElementById('quantity').value = '1';
+            document.getElementById('quantity').focus();
+        });
+
+        // Renderizar lista
+        function renderShoppingList() {
+            if (shoppingItems.length === 0) {
+                shoppingListContainer.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            shoppingListContainer.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+
+            const itemsByStore = {};
+            shoppingItems.forEach(item => {
+                if (!itemsByStore[item.store]) itemsByStore[item.store] = [];
+                itemsByStore[item.store].push(item);
+            });
+
+            let html = '';
+            Object.keys(itemsByStore).forEach(storeName => {
+                html += `
+                    <div class="item-enter bg-white dark:bg-gray-800">
+                        <div class="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700">
+                            <i class="fas fa-store text-primary"></i>
+                            <h3 class="font-bold text-gray-800 dark:text-gray-200">${storeName}</h3>
+                        </div>
+                        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                `;
+                
+                itemsByStore[storeName].forEach(item => {
+                    html += `
+                        <div class="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3">
+                                    <span class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-md text-sm font-bold min-w-[2rem] text-center">
+                                        ${item.quantity}
+                                    </span>
+                                    <span class="font-medium text-gray-800 dark:text-gray-200">${item.name}</span>
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-11">
+                                    $${item.price.toFixed(2)} c/u
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <span class="font-bold text-gray-900 dark:text-white">$${item.total.toFixed(2)}</span>
+                                <button onclick="removeItem(${item.id})" 
+                                        class="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div></div>`;
+            });
+
+            shoppingList.innerHTML = html;
+            itemCountBadge.textContent = `${shoppingItems.length} items`;
+        }
+
+        function removeItem(id) {
+            showConfirmDialog('¿Eliminar este artículo?', () => {
+                shoppingItems = shoppingItems.filter(item => item.id !== id);
+                renderShoppingList();
+                updateTotal();
+            });
+        }
+
+        function updateTotal() {
+            const total = shoppingItems.reduce((sum, item) => sum + item.total, 0);
+            totalAmount.textContent = `$${total.toFixed(2)}`;
+        }
+
+        clearAllBtn.addEventListener('click', () => {
+            if (shoppingItems.length === 0) return;
+            showConfirmDialog('¿Borrar toda la lista? Esta acción no se puede deshacer.', () => {
+                shoppingItems = [];
+                renderShoppingList();
+                updateTotal();
+            });
+        });
+
+        // ==========================================
+        // LÓGICA DE EXPORTACIÓN (CORRECCIÓN KAITO 2.0)
+        // ==========================================
+        
+        async function createExportElement() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            const itemsByStore = {};
+            shoppingItems.forEach(item => {
+                if (!itemsByStore[item.store]) itemsByStore[item.store] = [];
+                itemsByStore[item.store].push(item);
+            });
+
+            const exportContainer = document.createElement('div');
+            // FIX: Usar 'absolute' con 'left: -9999px' y 'opacity: 1'.
+            // Si la opacidad es 0, html2canvas no pinta nada. 
+            // Si usamos 'display: none', tampoco.
+            // La solución es moverlo muy lejos horizontalmente.
+            exportContainer.style.cssText = `
+                position: absolute;
+                left: -9999px;
+                top: 0;
+                width: 800px;
+                background-color: white;
+                font-family: 'Helvetica Neue', Arial, sans-serif;
+                color: #1f2937;
+                padding: 40px;
+                box-sizing: border-box;
+                z-index: -1000;
+                opacity: 1; /* ¡Esto era el culpable! Debe ser 1 */
+            `;
+
+            let exportHTML = `
+                <div style="border-bottom: 4px solid #5D5CDE; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: end;">
+                    <div>
+                        <h1 style="color: #5D5CDE; font-size: 32px; margin: 0; font-weight: 800; letter-spacing: -0.5px;">LISTA DE COMPRAS</h1>
+                        <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Generado con Tiendeo App 💙</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 14px; color: #6b7280;">Fecha de creación</div>
+                        <div style="font-size: 16px; font-weight: 600; color: #374151;">${dateStr}</div>
+                    </div>
+                </div>
+            `;
+
+            Object.keys(itemsByStore).forEach(storeName => {
+                exportHTML += `
+                    <div style="margin-bottom: 30px; page-break-inside: avoid;">
+                        <div style="background: #f3f4f6; color: #1f2937; padding: 10px 15px; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 18px; border-left: 5px solid #5D5CDE;">
+                            ${storeName}
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+                            <thead style="background: #f9fafb;">
+                                <tr>
+                                    <th style="text-align: left; padding: 10px 15px; font-size: 12px; color: #6b7280; font-weight: 600; width: 10%;">CANT</th>
+                                    <th style="text-align: left; padding: 10px 15px; font-size: 12px; color: #6b7280; font-weight: 600;">ARTÍCULO</th>
+                                    <th style="text-align: right; padding: 10px 15px; font-size: 12px; color: #6b7280; font-weight: 600; width: 20%;">TOTAL</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                itemsByStore[storeName].forEach((item, idx) => {
+                    const bg = idx % 2 === 0 ? '#fff' : '#f9fafb';
+                    exportHTML += `
+                        <tr style="background: ${bg};">
+                            <td style="padding: 12px 15px; font-weight: 700; color: #5D5CDE; text-align: center; border-bottom: 1px solid #f3f4f6;">${item.quantity}</td>
+                            <td style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6;">
+                                <div style="font-weight: 600; color: #374151;">${item.name}</div>
+                                <div style="font-size: 12px; color: #9ca3af;">$${item.price.toFixed(2)} c/u</div>
+                            </td>
+                            <td style="padding: 12px 15px; text-align: right; font-weight: 600; color: #111827; border-bottom: 1px solid #f3f4f6;">$${item.total.toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+                
+                exportHTML += `</tbody></table></div>`;
+            });
+
+            const total = shoppingItems.reduce((sum, item) => sum + item.total, 0);
+            exportHTML += `
+                <div style="margin-top: 40px; text-align: right; page-break-inside: avoid;">
+                    <div style="display: inline-block; background: #5D5CDE; color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(93, 92, 222, 0.3);">
+                        <div style="font-size: 14px; opacity: 0.9; margin-bottom: 4px;">Total Estimado</div>
+                        <div style="font-size: 32px; font-weight: 800;">$${total.toFixed(2)}</div>
+                    </div>
+                </div>
+            `;
+
+            exportContainer.innerHTML = exportHTML;
+            document.body.appendChild(exportContainer);
+            return exportContainer;
+        }
+
+        async function generateCanvas(element) {
+            // Aumenté el tiempo de espera para asegurar que los estilos (como Tailwind) carguen bien
+            await new Promise(r => setTimeout(r, 500));
+            window.scrollTo(0,0); 
+            
+            return await html2canvas(element, {
+                scale: 2, 
+                useCORS: true,
+                logging: false, 
+                backgroundColor: '#ffffff',
+                width: 800,
+                // height: null - Dejamos que calcule la altura automáticamente
+                windowWidth: 800, // Forzar contexto de ancho de ventana
+                x: 0, 
+                y: 0
+            });
+        }
+
+        // Exportar PNG
+        exportPNGBtn.addEventListener('click', async () => {
+            if (shoppingItems.length === 0) return;
+            toggleLoading(true, 'Generando imagen HD...');
+
+            try {
+                const element = await createExportElement();
+                const canvas = await generateCanvas(element);
+                
+                const link = document.createElement('a');
+                link.download = `Mi_Compra_${new Date().toISOString().slice(0,10)}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+                document.body.removeChild(element);
+            } catch (err) {
+                console.error(err);
+                alert('Hubo un error al generar la imagen. Intenta de nuevo.');
+            } finally {
+                toggleLoading(false);
+            }
+        });
+
+        // Exportar PDF
+        exportPDFBtn.addEventListener('click', async () => {
+            if (shoppingItems.length === 0) return;
+            toggleLoading(true, 'Creando PDF...');
+
+            try {
+                const element = await createExportElement();
+                const canvas = await generateCanvas(element);
+                const imgData = canvas.toDataURL('image/png');
+                
+                // Calcular dimensiones para A4
+                const imgWidth = 210; // mm (A4 width)
+                const pageHeight = 297; // mm (A4 height)
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                let heightLeft = imgHeight;
+                let position = 0;
+
+                // Primera página
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+
+                // Si la lista es muy larga, agregar páginas
+                while (heightLeft >= 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+                
+                pdf.save(`Lista_Tiendeo_${new Date().toISOString().slice(0,10)}.pdf`);
+                document.body.removeChild(element);
+            } catch (err) {
+                console.error(err);
+                alert('Error al generar PDF: ' + err.message);
+            } finally {
+                toggleLoading(false);
+            }
+        });
+
+        // Init
+        renderShoppingList();
+        updateTotal();
+    </script>
+</body>
+</html>
